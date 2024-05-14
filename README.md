@@ -65,4 +65,7 @@ The Comprehensive Forecasting System aims to develop a versatile platform for im
 4. **Performance Evaluation**: Final score based on the accuracy of the hybrid neural network.
 
 ---
-Please feel free to adjust the readme as needed to fit your project's specifics!
+### Contributors
+- Azan Shahzad (22i-2068)
+- Talha Rasheed (21i-1365)
+
