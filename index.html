@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+        }
+        .dashboard {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .chart-container {
+            width: 45%;
+            max-width: 400px;
+        }
+        .header {
+            background-color: #333;
+            color: #fff;
+            padding: 10px;
+            text-align: center;
+        }
+        .header button {
+            background-color: #333;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .header button:hover {
+            background-color: #444;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <button id="arimaButton">ARIMA</button>
+        <button id="annButton">ANN</button>
+        <button id="sarimaButton">SARIMA</button>
+        <button id="etsButton">ETS</button>
+        <button id="svrButton">SVR</button>
+        <button id="prophetButton">Prophet</button>
+        <button id="ltsmButton">LTSM</button>
+        <button id="hybridArimaButton">HYBRID ARIMA</button>
+    </div>
+    <div class="dashboard">
+        <div class="chart-container">
+            <canvas id="barChart" width="200" height="150"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="lineChart" width="200" height="150"></canvas>
+        </div>
+    </div>
+    <div class="dashboard">
+        <div class="chart-container">
+            <canvas id="doubleLineChart" width="200" height="150"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="scatterPlot" width="200" height="150"></canvas>
+        </div>
+        <div class="chart-container">
+            <canvas id="forecastLineChart" width="200" height="150"></canvas>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Fetch data for the bar chart
+        fetch('chartData.json')
+            .then(response => response.json())
+            .then(data => {
+                const barCtx = document.getElementById('barChart').getContext('2d');
+                const barChart = new Chart(barCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.labels,
+                        datasets: [{
+                            label: 'RMSE',
+                            data: data.rmseValues,
+                            backgroundColor: 'rgba(66, 255, 190, 0.8)',
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(error => console.error('Error fetching bar chart data:', error));
+
+        // Fetch data for the line chart
+        fetch('data.json')
+            .then(response => response.json())
+            .then(data => {
+                const lineCtx = document.getElementById('lineChart').getContext('2d');
+                const lineChart = new Chart(lineCtx, {
+                    type: 'line',
+                    data: {
+                        labels: data.map(entry => entry.Date),
+                        datasets: [{
+                            label: 'Adj Close',
+                            data: data.map(entry => entry['Adj Close']),
+                            borderColor: 'rgba(66, 255, 190, 0.8)',
+                            borderWidth: 1,
+                            fill: false
+                        }]
+                    },
+                    options: {
+                        scales: {
+                            y: {
+                                beginAtZero: false
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(error => console.error('Error fetching line chart data:', error));
+
+        let doubleLineChart, scatterChart, forecastLineChart;
+
+        // Function to fetch and plot double line chart
+        function fetchDataAndPlotChart(selectedModel) {
+            fetch('All_Actual_Predictions_Residuals.json')
+                .then(response => response.json())
+                .then(data => {
+                    const labels = data.map(entry => entry.Date);
+                    let actualData, predData, residualData, forecastData, forecastDates;
+                    if (selectedModel === 'SARIMA') {
+                        actualData = data.map(entry => entry.ActualSar);
+                        predData = data.map(entry => entry.PredSar);
+                        residualData = data.map(entry => entry.ResSar);
+                    } else if (selectedModel === 'HYBRID ARIMA') {
+                        actualData = data.map(entry => entry.ActResHy);
+                        predData = data.map(entry => entry.PredResHy);
+                        residualData = data.map(entry => entry.HyRes);
+                    } else {
+                        actualData = data.map(entry => entry.ActualAll);
+                        predData = data.map(entry => {
+                            switch (selectedModel) {
+                                case 'ARIMA':
+                                    return entry.PredArima;
+                                case 'ANN':
+                                    return entry.PredANN;
+                                case 'ETS':
+                                    return entry.PredETS;
+                                case 'SVR':
+                                    return entry.PredSVR;
+                                case 'Prophet':
+                                    return entry.PredProphet;
+                                case 'LTSM':
+                                    return entry.PredLTSM;
+                                default:
+                                    return null;
+                            }
+                        });
+                        residualData = data.map(entry => {
+                            switch (selectedModel) {
+                                case 'ARIMA':
+                                    return entry.ResArima;
+                                case 'ANN':
+                                    return entry.ResANN;
+                                case 'ETS':
+                                    return entry.ResETS;
+                                case 'SVR':
+                                    return entry.ResSVR;
+                                case 'Prophet':
+                                    return entry.ResProphet;
+                                case 'LTSM':
+                                    return entry.ResLTSM;
+                                default:
+                                    return null;
+                            }
+                        });
+                    }
+                    // Fetching forecast data from RMSE_Forecast.json
+                    fetch('RMSE_Forecast.json')
+                        .then(response => response.json())
+                        .then(forecast => {
+                            forecastData = forecast.find(item => item.Model === selectedModel)?.Forecast;
+                            forecastDates = forecast.find(item => item.Model === selectedModel)?.Date;
+                            console.log(forecastDates);
+                            if (forecastData && forecastDates) {
+                                plotForecastLineChart(forecastDates, forecastData, labels, actualData);
+                            }
+                        })
+                        .catch(error => console.error('Error fetching forecast data:', error));
+                    plotDoubleLineChart(labels, actualData, predData);
+                    plotScatterChart(residualData);
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        }
+
+        // Event listeners for model buttons
+        document.getElementById('arimaButton').addEventListener('click', function() {
+            fetchDataAndPlotChart('ARIMA');
+        });
+        document.getElementById('annButton').addEventListener('click', function() {
+            fetchDataAndPlotChart('ANN');
+        });
+        document.getElementById('sarimaButton').addEventListener('click', function() {
+            fetchDataAndPlotChart('SARIMA');
+        });
+        document.getElementById('etsButton').addEventListener('click', function() {
+            fetchDataAndPlotChart('ETS');
+        });
+        document.getElementById('svrButton').addEventListener('click', function() {
+            fetchDataAndPlotChart('SVR');
+        });
+        document.getElementById('prophetButton').addEventListener('click', function() {
+            fetchDataAndPlotChart('Prophet');
+        });
+        document.getElementById('ltsmButton').addEventListener('click', function() {
+            fetchDataAndPlotChart('LTSM');
+        });
+        document.getElementById('hybridArimaButton').addEventListener('click', function() {
+            fetchDataAndPlotChart('HYBRID ARIMA');
+        });
+
+        // Function to plot double line chart
+        function plotDoubleLineChart(labels, actualData, predData) {
+            if (doubleLineChart) {
+                doubleLineChart.destroy();
+            }
+            const ctx = document.getElementById('doubleLineChart').getContext('2d');
+            doubleLineChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Actual',
+                        data: actualData,
+                        borderColor: 'rgba(2, 0, 215, 0.8)',
+                        borderWidth: 1,
+                        fill: false
+                    }, {
+                        label: 'Predicted',
+                        data: predData,
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Function to plot scatter chart
+        function plotScatterChart(residualData) {
+            if (scatterChart) {
+                scatterChart.destroy();
+            }
+            const ctx = document.getElementById('scatterPlot').getContext('2d');
+            scatterChart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Residuals',
+                        data: residualData.map((value, index) => ({ x: index, y: value })),
+                        borderColor: 'rgba(0, 0, 0, 0)',
+                        backgroundColor: 'rgba(55, 55, 56, 0.8)',
+                        pointRadius: 5
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            position: 'bottom'
+                        },
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+
+        let forecastChart;
+
+        // Function to plot forecast line chart
+        function plotForecastLineChart(forecastDates, forecastData, labels, actualData) {
+            // Remove existing chart if it exists
+            if (forecastChart) {
+                forecastChart.destroy();
+            }
+            const ctx = document.getElementById('forecastLineChart').getContext('2d');
+            forecastChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Actual',
+                        data: actualData,
+                        borderColor: 'rgba(2, 0, 215, 0.8)',
+                        borderWidth: 1,
+                        fill: false
+                    }, {
+                        label: 'Forecast',
+                        data: forecastData,
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        borderWidth: 1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
